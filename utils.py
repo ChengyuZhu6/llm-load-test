@@ -16,6 +16,7 @@ from plugins import (
     hf_tgi_plugin,
     openai_plugin,
     tgis_grpc_plugin,
+    torch_serve_plugin,
 )
 
 import yaml
@@ -89,6 +90,8 @@ def parse_config(config):
         plugin = hf_tgi_plugin.HFTGIPlugin(config.get("plugin_options"))
     elif plugin_type == "dummy_plugin":
         plugin = dummy_plugin.DummyPlugin(config.get("plugin_options"))
+    elif plugin_type == "torch_serve_plugin":
+        plugin = torch_serve_plugin.TorchServePlugin(config.get("plugin_options"))
     else:
         logging.error("Unknown plugin type %s", plugin_type)
         raise ValueError(f"Unknown plugin type {plugin_type}")
