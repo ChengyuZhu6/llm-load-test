@@ -107,18 +107,9 @@ class TorchServePlugin(plugin.Plugin):
             error = message.get("error")
             print(message)
             if error is None:
-                # if "/v1/chat/completions" in self.host:
-                #     result.output_text = message["choices"][0]['delta']['content']
-                # else:
-                #     result.output_text = message["choices"][0]["text"]
-
-                # result.output_tokens = message["usage"]["completion_tokens"]
-                # result.input_tokens = message["usage"]["prompt_tokens"]
-                # result.stop_reason =  message["choices"][0]["finish_reason"]
-                result.output_text = ""
-                result.output_tokens = ""
-                result.input_tokens = ""
-                result.stop_reason = ""
+                result.output_text = message["Output"]["output_text"]
+                result.output_tokens = message["Output"]["output_tokens"]
+                result.input_tokens = message["Output"]["input_tokens"]
             else:
                 result.error_code = response.status_code
                 result.error_text = error
@@ -131,8 +122,8 @@ class TorchServePlugin(plugin.Plugin):
             result.error_text = f"KeyError, unexpected response format: {response.text}"
 
         # For non-streaming requests we are keeping output_tokens_before_timeout and output_tokens same.
-        # result.output_tokens_before_timeout = result.output_tokens
-        # result.calculate_results()
+        result.output_tokens_before_timeout = result.output_tokens
+        result.calculate_results()
 
         return result
 
