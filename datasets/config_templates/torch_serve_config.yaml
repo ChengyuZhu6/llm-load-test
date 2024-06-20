@@ -30,5 +30,6 @@ plugin_options:
   api: "predict"
   custom_headers: {"Host": "llmtorch-predictor.default.svc.cluster.local"}
   proxies: {}
+  timeout_sec: 300
 extra_metadata:
   replicas: 1

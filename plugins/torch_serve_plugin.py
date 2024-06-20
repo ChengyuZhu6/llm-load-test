@@ -52,7 +52,8 @@ class TorchServePlugin(plugin.Plugin):
                 self.custome_headers[key] = value
         else:
             self.custome_headers = None
-        
+
+        self.timeout_sec = args.get("timeout_sec")
         utils.set_proxy(args.get("proxies"))
 
     def request_http(self, query: dict, user_id: int, test_end_time: float = 0):
@@ -107,9 +108,9 @@ class TorchServePlugin(plugin.Plugin):
             error = message.get("error")
             print(message)
             if error is None:
-                result.output_text = message["Output"]["output_text"]
-                result.output_tokens = message["Output"]["output_tokens"]
-                result.input_tokens = message["Output"]["input_tokens"]
+                result.output_text = message["Output"]
+                result.output_tokens = message["Output_tokens"]
+                result.input_tokens = message["Input_tokens"]
             else:
                 result.error_code = response.status_code
                 result.error_text = error
@@ -155,7 +156,7 @@ class TorchServePlugin(plugin.Plugin):
         result.start_time = time.time()
         try:
             response = requests.post(
-                self.host, headers=headers, json=data, verify=False, stream=True
+                self.host, headers=headers, json=data, verify=False, stream=True, timeout=self.timeout_sec
             )
             response.raise_for_status()
         except requests.exceptions.ConnectionError as err:
