@@ -58,7 +58,7 @@ class TorchServePlugin(plugin.Plugin):
         self.timeout_sec = args.get("timeout_sec")
         self.model_path = args.get("model_path")
         self.tokenizer = LlamaTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
-        
+        self.constant_output_tokens = args.get("constant_output_tokens")
         utils.set_proxy(args.get("proxies"))
 
     def request_http(self, query: dict, user_id: int, test_end_time: float = 0):
@@ -71,13 +71,13 @@ class TorchServePlugin(plugin.Plugin):
         if self.custome_headers != None:
             for key,value in self.custome_headers.items():
                 headers[key] = value
-
+        
         data = {
              "instances": [
                 {
                     "text": query["text"],
-                    "max_tokens": query["output_tokens"],
-                    "min_tokens": query["output_tokens"],
+                    "max_tokens": query["output_tokens"] if self.constant_output_tokens == -1 else self.constant_output_tokens,
+                    "min_tokens": query["output_tokens"] if self.constant_output_tokens == -1 else self.constant_output_tokens,
                     "temperature": 1.0,
                     "top_p": 0.9,
                     "seed": 10,

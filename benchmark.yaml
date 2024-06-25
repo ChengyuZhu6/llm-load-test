@@ -1,0 +1,12 @@
+output:
+  format: "json" 
+  name: "output"
+inference_deploy_yaml_path: "/media/shared_folder/med-alpaca/kserve-deploy/auto_scannling_llama2.yaml"
+llm_config_path: "/media/shared_folder/AIGC-PVC/pvc-91cd0f04-8188-4e39-876e-e9133af61d2f/config/config.properties"
+kill_pod_binary_path: "./scripts/kill-pod.sh"
+benchmark_config_path: "./config.yaml"
+test_script_path: "./load_test.py"
+output_tokens_to_concurrency: [128, 256, 512, 1024]
+batch_size: [1, 2, 4, 8]
+pod_num: [1, 2, 4, 8]
+duration: 300

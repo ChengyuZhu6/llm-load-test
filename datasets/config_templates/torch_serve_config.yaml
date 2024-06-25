@@ -24,6 +24,7 @@ plugin_options:
   #interface: "grpc" # Some plugins like caikit-nlp-client should support grpc/http
   use_tls: False # Use True if querying an SSL grpc endpoint over https
   streaming: False
+  constant_output_tokens: -1
   model_name: "llama"
   model_path: "/media/shared_folder/AIGC-PVC/pvc-91cd0f04-8188-4e39-876e-e9133af61d2f/model-space/Llama-2-7b-hf/"
   host: "http://172.21.10.199"
