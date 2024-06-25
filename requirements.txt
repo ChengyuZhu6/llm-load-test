@@ -6,3 +6,5 @@ numpy
 pandas
 pyyaml
 pylint
+transformers
+sentencepiece

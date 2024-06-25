@@ -9,6 +9,8 @@ import urllib3
 from plugins import plugin, utils
 from result import RequestResult
 
+from transformers import LlamaTokenizer
+
 urllib3.disable_warnings()
 """
 Example plugin config.yaml:
@@ -54,6 +56,9 @@ class TorchServePlugin(plugin.Plugin):
             self.custome_headers = None
 
         self.timeout_sec = args.get("timeout_sec")
+        self.model_path = args.get("model_path")
+        self.tokenizer = LlamaTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
+        
         utils.set_proxy(args.get("proxies"))
 
     def request_http(self, query: dict, user_id: int, test_end_time: float = 0):
@@ -79,7 +84,8 @@ class TorchServePlugin(plugin.Plugin):
                 }
              ]
         }
-
+        prompt_token_ids = self.tokenizer(query["text"]).input_ids
+        prompt_len = len(prompt_token_ids)
         response = None
         try:
             response = requests.post(self.host, headers=headers, json=data, verify=False)
@@ -110,7 +116,7 @@ class TorchServePlugin(plugin.Plugin):
             if error is None:
                 result.output_text = message["Output"]
                 result.output_tokens = message["Output_tokens"]
-                result.input_tokens = message["Input_tokens"]
+                result.input_tokens = prompt_len
             else:
                 result.error_code = response.status_code
                 result.error_text = error
