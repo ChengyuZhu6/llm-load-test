@@ -5,8 +5,10 @@ import time
 import requests
 import urllib3
 
-from plugins import plugin
+from plugins import plugin, utils
 from result import RequestResult
+
+from transformers import LlamaTokenizer
 
 urllib3.disable_warnings()
 """
@@ -41,8 +43,16 @@ class OpenAIPlugin(plugin.Plugin):
             self.request_func = self.request_http
 
         self.host = args.get("host") + args.get("endpoint")
-
+        if args.get("custom_headers"):
+            self.custome_headers = {}
+            for key,value in args.get("custom_headers").items():
+                self.custome_headers[key] = value
+        else:
+            self.custome_headers = None
         self.model_name = args.get("model_name")
+        self.model_path = args.get("model_path")
+        self.tokenizer = LlamaTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
+        utils.set_proxy(args.get("proxies"))
 
     def request_http(self, query: dict, user_id: int, test_end_time: float = 0):
 
@@ -127,10 +137,13 @@ class OpenAIPlugin(plugin.Plugin):
 
     def streaming_request_http(self, query: dict, user_id: int, test_end_time: float):
         headers = {"Content-Type": "application/json"}
+        if self.custome_headers != None:
+            for key,value in self.custome_headers.items():
+                headers[key] = value
 
         data = {
                 "max_tokens": query["output_tokens"],
-                "temperature": 0.1,
+                "temperature": 1.0,
                 "stream": True,
             }
         if "/v1/chat/completions" in self.host:
@@ -140,7 +153,9 @@ class OpenAIPlugin(plugin.Plugin):
         else:
             data["prompt"] = query["text"],
             data["min_tokens"] = query["output_tokens"]
-
+        prompt_token_ids = self.tokenizer(query["text"]).input_ids
+        prompt_len = len(prompt_token_ids)
+        print(f"prompt_len = {prompt_len}")
         # some runtimes only serve one model, won't check this.
         if self.model_name is not None:
             data["model"] = self.model_name
@@ -201,8 +216,10 @@ class OpenAIPlugin(plugin.Plugin):
                     )
                     continue
             else:
+                # if found and data == b"[DONE]":
+                #     break
+                # else:
                 continue
-
             try:
                 # First chunk may not be a token, just a connection ack
                 if not result.ack_time:
@@ -239,7 +256,6 @@ class OpenAIPlugin(plugin.Plugin):
         # Full response received, return
         result.end_time = time.time()
         result.output_text = "".join(tokens)
-
         if not result.input_tokens:
             logger.warning("Input token count not found in response, using dataset input_tokens")
             result.input_tokens = query.get("input_tokens")
