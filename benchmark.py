@@ -107,9 +107,11 @@ def main():
             for ot in output_tokens:
                 configure_new_testcase(benchmark_config, bs, pn, ot)
                 running_benchmark(benchmark_config)
+
     output_dir =  benchmark_config.get("output").get("dir")
     csv_file_name = benchmark_config.get("output").get("csv")
     benchmark_utils.generate_csv(output_dir, csv_file_name)
+    benchmark_utils.generate_graphs(output_dir + csv_file_name)
 
 if __name__ == "__main__":
     main()

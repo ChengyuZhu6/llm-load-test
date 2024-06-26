@@ -9,3 +9,5 @@ pylint
 transformers
 sentencepiece
 kubernetes
+matplotlib
+seaborn
