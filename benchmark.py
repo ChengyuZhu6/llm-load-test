@@ -41,9 +41,11 @@ def configure_new_testcase(benchmark_config, batch_size, pod_num, output_token):
     output_name = benchmark_config.get("output").get("name")
     output_format = benchmark_config.get("output").get("format")
     output_file_name = output_name + "-output_tokens" + str(output_token) + "-batch" + str(batch_size) + "-pod" + str(pod_num) + "." + output_format
+    output_dir = benchmark_config.get("output").get("dir")
     with open(benchmark_config_path) as benchmark_config_file:
         benchmark_config_data = yaml.safe_load(benchmark_config_file)
     benchmark_config_data['output']['file'] = output_file_name
+    benchmark_config_data['output']['dir'] = output_dir
     benchmark_config_data['load_options']['concurrency'] = concurrency
     benchmark_config_data['load_options']['duration'] = duration_time
     benchmark_config_data['dataset']['max_output_tokens'] = output_token if output_token != -1 else 128
@@ -105,6 +107,9 @@ def main():
             for ot in output_tokens:
                 configure_new_testcase(benchmark_config, bs, pn, ot)
                 running_benchmark(benchmark_config)
+    output_dir =  benchmark_config.get("output").get("dir")
+    csv_file_name = benchmark_config.get("output").get("csv")
+    benchmark_utils.generate_csv(output_dir, csv_file_name)
 
 if __name__ == "__main__":
     main()
