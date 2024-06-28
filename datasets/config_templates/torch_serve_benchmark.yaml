@@ -4,6 +4,7 @@ output:
   dir: "./output/"
   csv: "benchmark.csv"
 llm_engine: "torchserve"
+model_path: "/mnt/data/llm/Llama-2-7b-chat-hf"
 inference_deploy_yaml_path: "/media/shared_folder/med-alpaca/kserve-deploy/auto_scannling_llama2.yaml"
 llm_config_path: "/media/shared_folder/AIGC-PVC/pvc-91cd0f04-8188-4e39-876e-e9133af61d2f/config/config.properties"
 kill_pod_binary_path: "./scripts/kill-pod.sh"

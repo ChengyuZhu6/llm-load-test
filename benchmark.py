@@ -6,20 +6,21 @@ import time
 script_path = os.path.realpath(__file__)
 script_dir = os.path.dirname(script_path)
         
-def cleanup_environment(benchmark_config, api_instance, namespace):
+def cleanup_environment(benchmark_config, api_instance, namespace, llm_engine):
     deploy_yaml = benchmark_config.get("inference_deploy_yaml_path")
     benchmark_utils.command_execute('kubectl delete -f ' + deploy_yaml)
-    kill_pod_binary = benchmark_config.get("kill_pod_binary_path")
-    benchmark_utils.command_execute('bash ' + kill_pod_binary)
+    if llm_engine == "torchserve":
+        kill_pod_binary = benchmark_config.get("kill_pod_binary_path")
+        benchmark_utils.command_execute('bash ' + kill_pod_binary)
+
     # List all pods in the specified namespace
-    
     api_response = api_instance.list_namespaced_pod(namespace)
     while api_response.items:
         time.sleep(3)
         api_response = api_instance.list_namespaced_pod(namespace)
     print("Resources defined in the YAML file have been deleted.")
     
-def configure_new_testcase(benchmark_config, batch_size, pod_num, output_token):
+def configure_new_testcase(benchmark_config, batch_size, pod_num, output_token, llm_engine):
     print("Start configure_new_testcase.")
     # Change the benchmark config
     benchmark_config_path = benchmark_config.get("benchmark_config_path")
@@ -37,10 +38,16 @@ def configure_new_testcase(benchmark_config, batch_size, pod_num, output_token):
     benchmark_config_data['load_options']['duration'] = duration_time
     benchmark_config_data['dataset']['max_output_tokens'] = output_token if output_token != -1 else 128
     benchmark_config_data['plugin_options']['constant_output_tokens'] = output_token
+    benchmark_config_data['plugin_options']['model_name'] = benchmark_config.get("model_name")
+    benchmark_config_data['plugin_options']['model_path'] = benchmark_config.get("model_path")
+    if llm_engine == "torchserve":
+        benchmark_config_data['plugin'] = "torch_serve_plugin"
+    else:
+        benchmark_config_data['plugin'] = "openai_plugin"
     benchmark_utils.yaml_dump(benchmark_config_data, benchmark_config_path)
     print("Finish configure_new_testcase.")
 
-def deploy_llm(benchmark_config, api_instance, batch_size, pod_num, namespace):
+def deploy_llm(benchmark_config, api_instance, batch_size, pod_num, namespace, llm_engine):
     print("Start deploy_llm.")
     # Change the pod number in the deploy yaml file
     deploy_yaml = benchmark_config.get("inference_deploy_yaml_path")
@@ -48,9 +55,11 @@ def deploy_llm(benchmark_config, api_instance, batch_size, pod_num, namespace):
     deploy_data['spec']['predictor']['minReplicas'] = pod_num
     benchmark_utils.yaml_dump(deploy_data, deploy_yaml)
     
-    # Change the batch size in the llm config
-    llm_config_file = benchmark_config.get("llm_config_path")
-    benchmark_utils.replace_string_in_file(llm_config_file, r'"batchSize": \d+', '"batchSize": '+ str(batch_size))
+    # Change the batch size in the llm config for torchserve
+    if llm_engine == "torchserve":
+        llm_config_file = benchmark_config.get("llm_config_path")
+        benchmark_utils.replace_string_in_file(llm_config_file, r'"batchSize": \d+', '"batchSize": '+ str(batch_size))
+    
     benchmark_utils.command_execute('kubectl apply -f ' + deploy_yaml)
     
     time.sleep(5)
@@ -82,24 +91,22 @@ def main():
     k8s_api_instance = client.CoreV1Api()
     
     llm_engine = benchmark_config.get("llm_engine")
-    if llm_engine == "torchserve":
-        # use torchserve
-        batch_size = benchmark_config.get("batch_size")
-        output_tokens = benchmark_config.get("output_tokens_to_concurrency")
-        pod_num = benchmark_config.get("pod_num") 
-        namespace = 'default'
-        for bs in batch_size:
-            for pn in pod_num:
-                cleanup_environment(benchmark_config, k8s_api_instance, namespace)
-                deploy_llm(benchmark_config, k8s_api_instance, bs, pn, namespace)
-                for ot in output_tokens:
-                    configure_new_testcase(benchmark_config, bs, pn, ot)
-                    running_benchmark(benchmark_config)
+    namespace = 'default'
+    batch_size = benchmark_config.get("batch_size")
+    output_tokens = benchmark_config.get("output_tokens_to_concurrency")
+    pod_num = benchmark_config.get("pod_num") 
+    for bs in batch_size:
+        for pn in pod_num:
+            cleanup_environment(benchmark_config, k8s_api_instance, namespace, llm_engine)
+            deploy_llm(benchmark_config, k8s_api_instance, bs, pn, namespace, llm_engine)
+            for ot in output_tokens:
+                configure_new_testcase(benchmark_config, bs, pn, ot, llm_engine)
+                running_benchmark(benchmark_config)
 
-        output_dir =  benchmark_config.get("output").get("dir")
-        csv_file_name = benchmark_config.get("output").get("csv")
-        benchmark_utils.generate_csv(output_dir, csv_file_name)
-        benchmark_utils.generate_graphs(output_dir + csv_file_name)
+    output_dir =  benchmark_config.get("output").get("dir")
+    csv_file_name = benchmark_config.get("output").get("csv")
+    benchmark_utils.generate_csv(output_dir, csv_file_name)
+    benchmark_utils.generate_graphs(output_dir + csv_file_name)
 
 if __name__ == "__main__":
     main()

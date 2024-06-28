@@ -1,0 +1,15 @@
+output:
+  format: "json" 
+  name: "output"
+  dir: "./output/"
+  csv: "benchmark.csv"
+llm_engine: "vllm"
+model_name: "llama2"
+model_path: "/mnt/data/llm/Llama-2-7b-chat-hf"
+inference_deploy_yaml_path: "/root/vllm-ipex.yaml"
+benchmark_config_path: "./config.yaml"
+test_script_path: "./load_test.py"
+output_tokens_to_concurrency: [128]
+batch_size: [2]
+pod_num: [1]
+duration: 300
