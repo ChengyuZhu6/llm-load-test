@@ -6,7 +6,26 @@ import re
 import subprocess
 import matplotlib.pyplot as plt
 import seaborn as sns
+from pathlib import Path
+import yaml
 
+def yaml_load(file):
+    """Load a yaml file."""
+    if not Path(file).is_file():
+        raise FileNotFoundError(file)
+    with open(file, "r", encoding="utf-8") as stream:
+        try:
+            return yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            raise RuntimeError(f"Could not parse {file}") from exc
+        
+def yaml_dump(data, file):
+    """Dump a yaml file."""
+    with open(file, "w") as stream:
+        try:
+            return yaml.safe_dump(data, stream)
+        except yaml.YAMLError as exc:
+            raise RuntimeError(f"Could not parse {file}") from exc
 
 def replace_string_in_file(file_path, old_string, new_string):
     # Read in the file
