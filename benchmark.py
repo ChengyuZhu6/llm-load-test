@@ -2,9 +2,6 @@ import os
 import benchmark_utils
 from kubernetes import client, config, watch
 import time
-
-script_path = os.path.realpath(__file__)
-script_dir = os.path.dirname(script_path)
         
 def cleanup_environment(benchmark_config, api_instance, namespace, llm_engine):
     deploy_yaml = benchmark_config.get("inference_deploy_yaml_path")
@@ -20,7 +17,7 @@ def cleanup_environment(benchmark_config, api_instance, namespace, llm_engine):
         api_response = api_instance.list_namespaced_pod(namespace)
     print("Resources defined in the YAML file have been deleted.")
     
-def configure_new_testcase(benchmark_config, batch_size, pod_num, output_token, llm_engine):
+def configure_new_testcase(benchmark_config, batch_size, pod_num, output_token, input_token, llm_engine):
     print("Start configure_new_testcase.")
     # Change the benchmark config
     benchmark_config_path = benchmark_config.get("benchmark_config_path")
@@ -29,7 +26,7 @@ def configure_new_testcase(benchmark_config, batch_size, pod_num, output_token, 
     concurrency = batch_size * pod_num
     output_name = benchmark_config.get("output").get("name")
     output_format = benchmark_config.get("output").get("format")
-    output_file_name = output_name + "-output_tokens" + str(output_token) + "-batch" + str(batch_size) + "-pod" + str(pod_num) + "." + output_format
+    output_file_name = output_name + "-input_tokens" + str(input_token) + "-output_tokens" + str(output_token) + "-batch" + str(batch_size) + "-pod" + str(pod_num) + "." + output_format
     output_dir = benchmark_config.get("output").get("dir")
     benchmark_config_data = benchmark_utils.yaml_load(benchmark_config_path)
     benchmark_config_data['output']['file'] = output_file_name
@@ -37,6 +34,10 @@ def configure_new_testcase(benchmark_config, batch_size, pod_num, output_token, 
     benchmark_config_data['load_options']['concurrency'] = concurrency
     benchmark_config_data['load_options']['duration'] = duration_time
     benchmark_config_data['dataset']['max_output_tokens'] = output_token if output_token != -1 else 128
+    benchmark_config_data['dataset']['min_output_tokens'] = output_token if output_token != -1 else 128
+    benchmark_config_data['dataset']['max_input_tokens'] = input_token if output_token != -1 else 128
+    benchmark_config_data['dataset']['min_input_tokens'] = input_token if output_token != -1 else 128
+
     benchmark_config_data['plugin_options']['constant_output_tokens'] = output_token
     benchmark_config_data['plugin_options']['model_name'] = benchmark_config.get("model_name")
     benchmark_config_data['plugin_options']['model_path'] = benchmark_config.get("model_path")
@@ -44,6 +45,7 @@ def configure_new_testcase(benchmark_config, batch_size, pod_num, output_token, 
         benchmark_config_data['plugin'] = "torch_serve_plugin"
     else:
         benchmark_config_data['plugin'] = "openai_plugin"
+        benchmark_config_data['dataset']['enable_constant'] = benchmark_config.get("enable_constant")
     benchmark_utils.yaml_dump(benchmark_config_data, benchmark_config_path)
     print("Finish configure_new_testcase.")
 
@@ -53,6 +55,7 @@ def deploy_llm(benchmark_config, api_instance, batch_size, pod_num, namespace, l
     deploy_yaml = benchmark_config.get("inference_deploy_yaml_path")
     deploy_data = benchmark_utils.yaml_load(deploy_yaml)
     deploy_data['spec']['predictor']['minReplicas'] = pod_num
+    deploy_data['spec']['predictor']['maxReplicas'] = pod_num
     benchmark_utils.yaml_dump(deploy_data, deploy_yaml)
     
     # Change the batch size in the llm config for torchserve
@@ -74,7 +77,7 @@ def deploy_llm(benchmark_config, api_instance, batch_size, pod_num, namespace, l
             break
         else:
             print(api_instance.list_namespaced_pod(namespace))
-    
+    time.sleep(60)
     print("Resources defined in the YAML file have been created.")
 
 def running_benchmark(benchmark_config):
@@ -93,15 +96,17 @@ def main():
     llm_engine = benchmark_config.get("llm_engine")
     namespace = 'default'
     batch_size = benchmark_config.get("batch_size")
-    output_tokens = benchmark_config.get("output_tokens_to_concurrency")
+    output_tokens = benchmark_config.get("output_tokens")
+    input_tokens = benchmark_config.get("input_tokens")
     pod_num = benchmark_config.get("pod_num") 
     for bs in batch_size:
         for pn in pod_num:
             cleanup_environment(benchmark_config, k8s_api_instance, namespace, llm_engine)
             deploy_llm(benchmark_config, k8s_api_instance, bs, pn, namespace, llm_engine)
             for ot in output_tokens:
-                configure_new_testcase(benchmark_config, bs, pn, ot, llm_engine)
-                running_benchmark(benchmark_config)
+                for it in input_tokens:
+                    configure_new_testcase(benchmark_config, bs, pn, ot, it, llm_engine)
+                    running_benchmark(benchmark_config)
 
     output_dir =  benchmark_config.get("output").get("dir")
     csv_file_name = benchmark_config.get("output").get("csv")

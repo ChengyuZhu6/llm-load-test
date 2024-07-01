@@ -2,6 +2,7 @@
 import json
 import logging
 import random
+from transformers import LlamaTokenizer    
 
 dataset_seed = 1337
 
@@ -12,17 +13,20 @@ class Dataset:
     def __init__(self,
                  file,
                  model_name="",
+                 model_path="",
                  max_queries=3000,
                  min_input_tokens=0,
                  max_input_tokens=16000,
                  min_output_tokens=0,
                  max_output_tokens=4096,
-                 max_sequence_tokens=32000
+                 max_sequence_tokens=32000,
+                 enable_constant=False
                  ):
         """Init method."""
         logging.info("Initializing dataset with %s", locals())
         self.dataset_list = [input for input in
                              initialize_dataset(file,
+                                                model_path=model_path,
                                                 model_name=model_name,
                                                 max_queries=max_queries,
                                                 min_input_tokens=min_input_tokens,
@@ -30,8 +34,10 @@ class Dataset:
                                                 min_output_tokens=min_output_tokens,
                                                 max_output_tokens=max_output_tokens,
                                                 max_sequence_tokens=max_sequence_tokens,
+                                                enable_constant=enable_constant
                                                 )
                              ]
+        logging.info("Total dataset is %s elements, check filters!", len(self.dataset_list))
         if len(self.dataset_list) < 4:
             logging.warning("Total dataset is %s elements, check filters!", len(self.dataset_list))
         self.index = 0
@@ -46,16 +52,19 @@ class Dataset:
 
 def initialize_dataset(
     filename,
+    model_path=None,
     model_name="",
     max_queries=3000,
     min_input_tokens=0,
     max_input_tokens=16000,
     min_output_tokens=0,
     max_output_tokens=4096,
-    max_sequence_tokens=32000
+    max_sequence_tokens=32000,
+    enable_constant=False
 ):
     """Initialize the dataset."""
     prompt_format = get_format_string(model_name)
+    tokenizer = LlamaTokenizer.from_pretrained(model_path, trust_remote_code=True)
     with open(filename, "r", encoding="utf-8") as file:
         total_queries = 0
 
@@ -82,7 +91,21 @@ def initialize_dataset(
                 )
                 continue
                 # TODO exit or just skip here?
-            token_lengths_ok = filter_token_lengths(input_tokens,
+            if enable_constant:
+                if input_tokens < min_input_tokens:
+                    token_lengths_ok = False
+                else:
+                    input_tokens = min_input_tokens
+                    output_tokens = min_output_tokens
+                    text = prompt_format.format(prompt=prompt,
+                                                 system_prompt=system_prompt)
+                    prompt_token_ids = tokenizer(text).input_ids
+                    new_data_token_ids = prompt_token_ids[:input_tokens]
+                    prompt = tokenizer.decode(new_data_token_ids, skip_special_tokens=True)
+                    system_prompt = ""
+                    token_lengths_ok = True
+            else:
+                token_lengths_ok = filter_token_lengths(input_tokens,
                                                     output_tokens,
                                                     min_input_tokens,
                                                     max_input_tokens,
@@ -97,6 +120,7 @@ def initialize_dataset(
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                 }
+                # logging.info(f"input_tokens = {input_tokens}; output_tokens = {output_tokens}")
                 total_queries = total_queries + 1
                 yield input_data
                 if total_queries >= max_queries:
@@ -114,8 +138,8 @@ def filter_token_lengths(input_tokens,
     sequence_tokens = input_tokens + output_tokens
     return (output_tokens > min_output_tokens
             and output_tokens < max_output_tokens
-            and input_tokens < max_input_tokens
-            and input_tokens > min_input_tokens
+            and input_tokens <= max_input_tokens
+            and input_tokens >= min_input_tokens
             and sequence_tokens < max_sequence_tokens)
 
 

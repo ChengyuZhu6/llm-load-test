@@ -164,7 +164,8 @@ def main(args):
         logging.debug("Creating dataset with configuration %s", config["dataset"])
         # Get model_name if set for prompt formatting
         model_name = config.get("plugin_options", {}).get("model_name", "")
-        dataset = Dataset(model_name=model_name, **config["dataset"])
+        model_path = config.get("plugin_options", {}).get("model_path", "")
+        dataset = Dataset(model_name=model_name, model_path=model_path, **config["dataset"])
 
         warmup = config.get("warmup")
         if not warmup:

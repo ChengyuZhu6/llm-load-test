@@ -53,21 +53,24 @@ class OpenAIPlugin(plugin.Plugin):
         self.model_path = args.get("model_path")
         self.tokenizer = LlamaTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
         utils.set_proxy(args.get("proxies"))
+        self.output_tokens = args.get("constant_output_tokens")
 
     def request_http(self, query: dict, user_id: int, test_end_time: float = 0):
-
+        headers = {"Content-Type": "application/json"}
+        if self.custome_headers != None:
+            for key,value in self.custome_headers.items():
+                headers[key] = value
         result = RequestResult(user_id, query.get("text"), query.get("input_tokens"))
 
         result.start_time = time.time()
-
-        headers = {"Content-Type": "application/json"}
 
         if "/v1/chat/completions" in self.host:
             data = {
                 "messages": [
                     {"role": "user", "content": query["text"]}
                 ],
-                "max_tokens": query["output_tokens"],
+                "max_tokens": self.output_tokens,
+                "min_tokens": self.output_tokens,
                 "temperature": 0.1,
             }
         else:
@@ -81,7 +84,8 @@ class OpenAIPlugin(plugin.Plugin):
             }
         if self.model_name is not None:
             data["model"] = self.model_name
-
+        prompt_token_ids = self.tokenizer(query["text"]).input_ids
+        prompt_len = len(prompt_token_ids)
         response = None
         try:
             response = requests.post(self.host, headers=headers, json=data, verify=False)
@@ -113,9 +117,10 @@ class OpenAIPlugin(plugin.Plugin):
                     result.output_text = message["choices"][0]['delta']['content']
                 else:
                     result.output_text = message["choices"][0]["text"]
-
-                result.output_tokens = message["usage"]["completion_tokens"]
-                result.input_tokens = message["usage"]["prompt_tokens"]
+                output_token_ids = self.tokenizer(result.output_text).input_ids
+                output_token_len = len(output_token_ids)
+                result.output_tokens = output_token_len
+                result.input_tokens = prompt_len
                 result.stop_reason =  message["choices"][0]["finish_reason"]
             else:
                 result.error_code = response.status_code
@@ -142,7 +147,8 @@ class OpenAIPlugin(plugin.Plugin):
                 headers[key] = value
 
         data = {
-                "max_tokens": query["output_tokens"],
+                "max_tokens": self.output_tokens,
+                "min_tokens": self.output_tokens,
                 "temperature": 1.0,
                 "stream": True,
             }
@@ -153,9 +159,10 @@ class OpenAIPlugin(plugin.Plugin):
         else:
             data["prompt"] = query["text"],
             data["min_tokens"] = query["output_tokens"]
+        logger.info("max_tokens: %s", self.output_tokens)
+        logger.info("min_tokens: %s", self.output_tokens)
         prompt_token_ids = self.tokenizer(query["text"]).input_ids
         prompt_len = len(prompt_token_ids)
-        print(f"prompt_len = {prompt_len}")
         # some runtimes only serve one model, won't check this.
         if self.model_name is not None:
             data["model"] = self.model_name
@@ -167,7 +174,7 @@ class OpenAIPlugin(plugin.Plugin):
         result.start_time = time.time()
         try:
             response = requests.post(
-                self.host, headers=headers, json=data, verify=False, stream=True
+                self.host, headers=headers, json=data, verify=False, stream=True, timeout=600
             )
             response.raise_for_status()
         except requests.exceptions.ConnectionError as err:
@@ -185,15 +192,15 @@ class OpenAIPlugin(plugin.Plugin):
             logger.exception("HTTP error")
             return result
 
-        logger.debug("Response: %s", response)
+        # logger.debug("Response: %s", response)
         message = None
         for line in response.iter_lines():
-            logger.debug("response line: %s", line)
+            # logger.debug("response line: %s", line)
             _, found, data = line.partition(b"data: ")
             if found and data != b"[DONE]":
                 try:
                     message = json.loads(data)
-                    logger.debug("Message: %s", message)
+                    # logger.debug("Message: %s", message)
                     if "/v1/chat/completions" in self.host and not message["choices"][0]['delta'].get('content'):
                         message["choices"][0]['delta']['content']=""
                     error = message.get("error")
@@ -241,9 +248,6 @@ class OpenAIPlugin(plugin.Plugin):
 
                 # Last token comes with finish_reason set.
                 if message.get("choices", [])[0].get("finish_reason", None):
-                    result.output_tokens = message["usage"]["completion_tokens"]
-                    result.input_tokens = message["usage"]["prompt_tokens"]
-                    result.stop_reason =  message["choices"][0]["finish_reason"]
 
                     # If test duration timeout didn't happen before the last token is received, 
                     # total tokens before the timeout will be equal to the total tokens in the response.
@@ -263,6 +267,6 @@ class OpenAIPlugin(plugin.Plugin):
         if not result.output_tokens:
             logger.warning("Output token count not found in response, length of token list")
             result.output_tokens = len(tokens)
-
+            # logger.info("result.output_tokens: %s", result.output_tokens)
         result.calculate_results()
         return result

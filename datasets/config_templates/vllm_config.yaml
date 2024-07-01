@@ -1,19 +1,21 @@
 dataset:
+  enable_constant: true
   file: datasets/openorca_large_subset_011.jsonl
-  max_input_tokens: 16000
+  max_input_tokens: 128
   max_output_tokens: 128
   max_queries: 3000
   max_sequence_tokens: 16000
-  min_input_tokens: 0
+  min_input_tokens: 128
+  min_output_tokens: 128
 extra_metadata:
   replicas: 1
 load_options:
-  concurrency: 1
-  duration: 100
+  concurrency: 8
+  duration: 300
   type: constant
 output:
   dir: ./output/
-  file: output-output_tokens128-batch1-pod8.json
+  file: output-input_tokens128-output_tokens128-batch1-pod8.json
   format: json
 plugin: openai_plugin
 plugin_options:
@@ -26,7 +28,7 @@ plugin_options:
   model_path: /media/shared_folder/AIGC-PVC/pvc-91cd0f04-8188-4e39-876e-e9133af61d2f/model-space/Llama-2-7b-chat-hf
   proxies: {}
   streaming: true
-  timeout_sec: 100
+  timeout_sec: 300
   use_tls: false
 storage:
   type: local

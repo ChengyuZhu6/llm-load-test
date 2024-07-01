@@ -179,9 +179,10 @@ def write_output(config, results_list):
 
     # Only consider requests that were completed within the duration of the test for
     # calculating the summary statistics on tpot, ttft, itl, tt_ack
-    df_test_duration = df[df["output_tokens"] == df["output_tokens_before_timeout"]]
-    req_completed_within_test_duration = len(df_test_duration)
-
+    # df_test_duration = df[df["output_tokens"] == df["output_tokens_before_timeout"]]
+    # req_completed_within_test_duration = len(df_test_duration)
+    df_test_duration = df
+    req_completed_within_test_duration = len(df[df["output_tokens"] == df["output_tokens_before_timeout"]])
     # Time per output token summary
     output_obj = get_summary(df_test_duration, output_obj, "tpot")
 
@@ -238,6 +239,9 @@ def write_output(config, results_list):
 
 def get_summary(df: pd.DataFrame, output_obj: dict, summary_key: str):
     """Get the summary."""
+    if summary_key == 'tpot':
+        print(f"output_obj = {df[summary_key]}")
+        print(f"output_obj. mean = {df[summary_key].mean()}")
     output_obj["summary"][summary_key] = {}
     output_obj["summary"][summary_key]["min"] = df[summary_key].min()
     output_obj["summary"][summary_key]["max"] = df[summary_key].max()
